@@ -1,0 +1,18 @@
+util_lib = static_library(
+  'util',
+  include_directories: [inc],
+  c_pch: '../precompiled.h',
+  sources: [
+    'fs.c',
+    'fs.h',
+    'iobuf.c',
+    'iobuf.h',
+    'list.c',
+    'list.h',
+    'log.c',
+    'log.h',
+    'macro.h',
+    'str.c',
+    'str.h',
+  ]
+)

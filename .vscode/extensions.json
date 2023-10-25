@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "llvm-vs-code-extensions.vscode-clangd",
+    "mesonbuild.mesonbuild",
+    "webfreak.debug",
+    "xaver.clang-format",
+  ]
+}
