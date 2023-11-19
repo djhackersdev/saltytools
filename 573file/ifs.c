@@ -155,8 +155,8 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
   struct iobuf dest;
   struct const_iobuf stat_buf;
   uint32_t stat[IFS_STAT_LENGTH_];
-  size_t offset;
-  size_t nbytes;
+  uint32_t offset;
+  uint32_t nbytes;
   size_t i;
   int r;
 
@@ -190,7 +190,7 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
     r = fs_seek_to(ifs->f, offset);
 
     if (r < 0) {
-      log_write("%s: IFS seek failed (offset=%#lx): %s (%i)",
+      log_write("%s: IFS seek failed (offset=%#x): %s (%i)",
                 prop_get_name(dirent), offset, strerror(-r), r);
 
       return r;
@@ -203,7 +203,7 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
     r = fs_read(ifs->f, &dest);
 
     if (r < 0) {
-      log_write("%s: IFS read failed (nbytes=%#lx): %s (%i)",
+      log_write("%s: IFS read failed (nbytes=%#x): %s (%i)",
                 prop_get_name(dirent), nbytes, strerror(-r), r);
 
       return r;

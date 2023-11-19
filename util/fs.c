@@ -64,8 +64,12 @@ int fs_read(FILE *f, struct iobuf *buf) {
   if (nread < nbytes) {
     r = -errno;
 
-    if (r == 0) {
+    if (r != 0) {
+      log_write("Read failed: %s (%i)", strerror(-r), r);
+    } else {
       r = -ENODATA;
+      log_write("Short read: %llu < %llu", (unsigned long long)nread,
+                (unsigned long long)nbytes);
     }
 
     return r;
@@ -94,7 +98,9 @@ int fs_write(FILE *f, struct const_iobuf *buf) {
     if (r != 0) {
       log_write("Write failed: %s (%i)", strerror(-r), r);
     } else {
-      log_write("Short write: %zu < %zu", nwrit, nbytes);
+      r = -EINTR; /* I guess..??? */
+      log_write("Short write: %llu < %llu", (unsigned long long)nwrit,
+                (unsigned long long)nbytes);
     }
 
     return r;
@@ -221,7 +227,11 @@ int fs_mkdir(const char *path) {
     return r;
   }
 
+#ifdef _WIN32
+  r = mkdir(path);
+#else
   r = mkdir(path, 0755);
+#endif
 
   if (r != 0) {
     r = -errno;
