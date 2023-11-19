@@ -427,7 +427,7 @@ static void prop_xml_write_text_s64(struct strbuf *dest,
 
   assert(r >= 0);
 
-  strbuf_printf(dest, "%li", (int64_t)value);
+  strbuf_printf(dest, "%lli", (long long)value);
 }
 
 static void prop_xml_write_text_u8(struct strbuf *dest,
@@ -487,7 +487,7 @@ static void prop_xml_write_text_u64(struct strbuf *dest,
 
   assert(r >= 0);
 
-  strbuf_printf(dest, "%lu", value);
+  strbuf_printf(dest, "%llu", (unsigned long long)value);
 }
 
 static void prop_xml_write_text_bin(struct strbuf *dest,
