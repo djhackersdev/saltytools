@@ -23,6 +23,7 @@ enum prop_type {
   PROP_ARRAY_FLAG = 0x40
 };
 
+bool prop_type_is_array(enum prop_type type);
 bool prop_type_is_valid(enum prop_type type);
 const char *prop_type_to_string(enum prop_type type);
 int prop_type_to_size(enum prop_type type);

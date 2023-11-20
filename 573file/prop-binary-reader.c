@@ -391,7 +391,7 @@ static int prop_binary_slice_value(struct prop_binary_parser *bp, uint8_t type,
 
   orig_nbytes = prop_type_to_size(type);
 
-  if (orig_nbytes < 0) {
+  if (orig_nbytes < 0 || prop_type_is_array(type)) {
     is_variable = true;
     r = iobuf_read_be32(&bp->body, &nbytes);
 

@@ -37,13 +37,8 @@ static int prop_validate(const char *name, enum prop_type type,
 static int prop_validate(const char *name, enum prop_type type,
                          const void *bytes, uint32_t nbytes) {
   const char *chars;
-  int expected_nbytes;
-
-  if (type & PROP_ARRAY_FLAG) {
-    log_write("\"%s\": Arrays are not currently supported", name);
-
-    return -ENOTSUP;
-  }
+  const char *type_str;
+  int item_size;
 
   if (!prop_type_is_valid(type)) {
     log_write("\"%s\": Unsupported type code %#x", name, type);
@@ -51,13 +46,30 @@ static int prop_validate(const char *name, enum prop_type type,
     return -ENOTSUP;
   }
 
-  expected_nbytes = prop_type_to_size(type);
+  item_size = prop_type_to_size(type);
+  type_str = prop_type_to_string(type);
 
-  if (expected_nbytes >= 0 && nbytes != expected_nbytes) {
-    log_write("\"%s\": Incorrect size %#x for type %s (expected %#x)", name,
-              nbytes, prop_type_to_string(type), expected_nbytes);
+  if (prop_type_is_array(type)) {
+    if (item_size <= 0) {
+      log_write("\"%s\": Nonsensical array type %#x", name, type);
 
-    return -EINVAL;
+      return -EINVAL;
+    }
+
+    if (nbytes % item_size != 0) {
+      log_write(
+          "\"%s\": %s item size %i does not divide value length %#x evenly",
+          name, type_str, item_size, nbytes);
+
+      return -EINVAL;
+    }
+  } else {
+    if (item_size >= 0 && nbytes != item_size) {
+      log_write("\"%s\": Incorrect size %#x for type %s (expected %#x)", name,
+                nbytes, type_str, item_size);
+
+      return -EINVAL;
+    }
   }
 
   if (type == PROP_STR) {
@@ -192,6 +204,20 @@ const char *prop_get_attr(const struct prop *p, const char *key) {
   }
 
   return NULL;
+}
+
+uint32_t prop_get_count(const struct prop *p) {
+  int item_size;
+
+  assert(p != NULL);
+  assert(prop_type_is_array(p->type));
+
+  item_size = prop_type_to_size(p->type);
+
+  assert(item_size > 0);
+  assert(p->nbytes % item_size == 0);
+
+  return p->nbytes / item_size;
 }
 
 const struct attr *prop_get_first_attr(const struct prop *p) {

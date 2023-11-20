@@ -1,5 +1,6 @@
 #include <assert.h>
 
+#include "573file/prop-type.h"
 #include "573file/prop-xml-writer.h"
 #include "573file/prop.h"
 
@@ -26,6 +27,10 @@ static void prop_xml_write_void(struct strbuf *dest, const struct prop *p,
                                 unsigned int indent);
 static void prop_xml_write_text(struct strbuf *dest, const struct prop *p,
                                 enum prop_xml_escape ctx);
+static void prop_xml_write_text_element(struct strbuf *dest,
+                                        enum prop_type type,
+                                        struct const_iobuf *src,
+                                        enum prop_xml_escape ctx);
 static void prop_xml_write_text_s8(struct strbuf *dest,
                                    struct const_iobuf *src);
 static void prop_xml_write_text_s16(struct strbuf *dest,
@@ -154,6 +159,10 @@ static void prop_xml_write_nonvoid(struct strbuf *dest, const struct prop *p,
   prop_xml_write_indent(dest, indent);
   strbuf_printf(dest, "<%s __type=\"%s\"", name, type_str);
 
+  if (prop_type_is_array(type)) {
+    strbuf_printf(dest, " __count=\"%lu\"", (unsigned long)prop_get_count(p));
+  }
+
   first_child = prop_get_first_child_const(p);
 
   if (first_child != NULL) {
@@ -275,91 +284,124 @@ static void prop_xml_write_indent(struct strbuf *dest, unsigned int indent) {
 
 static void prop_xml_write_text(struct strbuf *dest, const struct prop *p,
                                 enum prop_xml_escape ctx) {
-  struct const_iobuf src;
+  struct const_iobuf value;
+  struct const_iobuf item;
   enum prop_type type;
+  uint32_t count;
+  uint32_t i;
+  int item_size;
+  int r;
 
   type = prop_get_type(p);
-  prop_borrow_value(p, &src);
+  prop_borrow_value(p, &value);
+
+  if (prop_type_is_array(type)) {
+    item_size = prop_type_to_size(type);
+    count = prop_get_count(p);
+
+    assert(item_size > 0);
+
+    for (i = 0; i < count; i++) {
+      if (i > 0) {
+        strbuf_putc(dest, ' ');
+      }
+
+      r = iobuf_slice(&item, &value, item_size);
+
+      assert(r >= 0);
+
+      prop_xml_write_text_element(dest, type, &item, ctx);
+    }
+  } else {
+    prop_xml_write_text_element(dest, type, &value, ctx);
+  }
+}
+
+static void prop_xml_write_text_element(struct strbuf *dest,
+                                        enum prop_type type,
+                                        struct const_iobuf *src,
+                                        enum prop_xml_escape ctx) {
+  type &= ~PROP_ARRAY_FLAG;
 
   switch (type) {
   case PROP_S8:
-    prop_xml_write_text_s8(dest, &src);
+    prop_xml_write_text_s8(dest, src);
 
     break;
 
   case PROP_S16:
-    prop_xml_write_text_s16(dest, &src);
+    prop_xml_write_text_s16(dest, src);
 
     break;
 
   case PROP_S32:
-    prop_xml_write_text_s32(dest, &src);
+    prop_xml_write_text_s32(dest, src);
 
     break;
 
   case PROP_S64:
-    prop_xml_write_text_s64(dest, &src);
+    prop_xml_write_text_s64(dest, src);
 
     break;
 
   case PROP_U8:
-    prop_xml_write_text_u8(dest, &src);
+    prop_xml_write_text_u8(dest, src);
 
     break;
 
   case PROP_U16:
-    prop_xml_write_text_u16(dest, &src);
+    prop_xml_write_text_u16(dest, src);
 
     break;
 
   case PROP_U32:
-    prop_xml_write_text_u32(dest, &src);
+    prop_xml_write_text_u32(dest, src);
 
     break;
 
   case PROP_U64:
-    prop_xml_write_text_u64(dest, &src);
+    prop_xml_write_text_u64(dest, src);
 
     break;
 
   case PROP_BIN:
-    prop_xml_write_text_bin(dest, &src);
+    prop_xml_write_text_bin(dest, src);
 
     break;
 
   case PROP_STR:
-    prop_xml_write_text_str(dest, &src, ctx);
+    prop_xml_write_text_str(dest, src, ctx);
 
     break;
 
   case PROP_IP4:
-    prop_xml_write_text_ip4(dest, &src);
+    prop_xml_write_text_ip4(dest, src);
 
     break;
 
   case PROP_TIME:
     /* Reuse the u32 writer for timestamps */
-    prop_xml_write_text_u32(dest, &src);
+    prop_xml_write_text_u32(dest, src);
 
     break;
 
   case PROP_2U16:
-    prop_xml_write_text_u16_tuple(dest, &src, 2);
+    prop_xml_write_text_u16_tuple(dest, src, 2);
 
     break;
 
   case PROP_3S32:
-    prop_xml_write_text_s32_tuple(dest, &src, 3);
+    prop_xml_write_text_s32_tuple(dest, src, 3);
 
     break;
 
   case PROP_4U16:
-    prop_xml_write_text_u16_tuple(dest, &src, 4);
+    prop_xml_write_text_u16_tuple(dest, src, 4);
 
     break;
 
   case PROP_BOOL:
-    prop_xml_write_text_bool(dest, &src);
+    prop_xml_write_text_bool(dest, src);
 
     break;
 
