@@ -22,7 +22,13 @@ static const int prop_type_sizes[64] = {
     [PROP_ATTR] = -1, [PROP_BOOL] = 1,
 };
 
+bool prop_type_is_array(enum prop_type type) {
+  return (type & PROP_ARRAY_FLAG) != 0;
+}
+
 bool prop_type_is_valid(enum prop_type type) {
+  type &= ~PROP_ARRAY_FLAG;
+
   if (type < 0 || type >= lengthof(prop_type_names)) {
     return false;
   }
@@ -33,11 +39,11 @@ bool prop_type_is_valid(enum prop_type type) {
 const char *prop_type_to_string(enum prop_type type) {
   assert(prop_type_is_valid(type));
 
-  return prop_type_names[type];
+  return prop_type_names[type & ~PROP_ARRAY_FLAG];
 }
 
 int prop_type_to_size(enum prop_type type) {
   assert(type == PROP_ATTR /* hack */ || prop_type_is_valid(type));
 
-  return prop_type_sizes[type];
+  return prop_type_sizes[type & ~PROP_ARRAY_FLAG];
 }

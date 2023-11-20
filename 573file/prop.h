@@ -15,6 +15,7 @@ void prop_free(struct prop *p);
 void prop_append(struct prop *p, struct prop *child);
 void prop_borrow_value(const struct prop *p, struct const_iobuf *out);
 const char *prop_get_attr(const struct prop *p, const char *key);
+uint32_t prop_get_count(const struct prop *p);
 const struct attr *prop_get_first_attr(const struct prop *p);
 struct prop *prop_get_first_child(struct prop *p);
 const struct prop *prop_get_first_child_const(const struct prop *p);
