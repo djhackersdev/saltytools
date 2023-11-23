@@ -5,6 +5,8 @@ _573file_lib = static_library(
   sources: [
     'ifs.c',
     'ifs.h',
+    'lz.c',
+    'lz.h',
     'prop-binary-reader.c',
     'prop-binary-reader.h',
     'prop-type.c',
