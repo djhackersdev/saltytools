@@ -30,11 +30,11 @@ struct ifs_header {
 struct ifs {
   FILE *f;
   uint32_t body_start;
-  struct prop *root;
+  struct prop *toc;
 };
 
 static int ifs_header_read(FILE *f, struct ifs_header *header);
-static int ifs_dirent_match(const struct prop *dirent, const char *path);
+static int ifs_iter_match(const struct ifs_iter *dirent, const char *path);
 
 static int ifs_header_read(FILE *f, struct ifs_header *header) {
   uint8_t header_bytes[ifs_header_size];
@@ -72,6 +72,7 @@ static int ifs_header_read(FILE *f, struct ifs_header *header) {
 int ifs_open(struct ifs **out, const char *path) {
   struct ifs *ifs;
   struct ifs_header header;
+  struct ifs_iter root;
   struct iobuf pp_buf;
   void *pp_bytes;
   size_t pp_nbytes;
@@ -130,13 +131,15 @@ int ifs_open(struct ifs **out, const char *path) {
     goto end;
   }
 
-  r = prop_binary_parse(&ifs->root, pp_bytes, pp_nbytes);
+  r = prop_binary_parse(&ifs->toc, pp_bytes, pp_nbytes);
 
   if (r < 0) {
     goto end;
   }
 
-  if (!ifs_dirent_is_dir(ifs->root)) {
+  root.p = ifs->toc;
+
+  if (!ifs_iter_is_dir(&root)) {
     log_write("%s: Root dirent is not a directory", path);
     r = -EBADMSG;
 
@@ -163,17 +166,24 @@ void ifs_close(struct ifs *ifs) {
     fclose(ifs->f);
   }
 
-  prop_free(ifs->root);
+  prop_free(ifs->toc);
   free(ifs);
 }
 
-const struct prop *ifs_get_root(struct ifs *ifs) {
+void ifs_get_root(struct ifs *ifs, struct ifs_iter *out) {
   assert(ifs != NULL);
+  assert(out != NULL);
 
-  return ifs->root;
+  out->p = ifs->toc;
 }
 
-int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
+const struct prop *ifs_get_toc_data(const struct ifs *ifs) {
+  assert(ifs != NULL);
+
+  return ifs->toc;
+}
+
+int ifs_read_file(struct ifs *ifs, const struct ifs_iter *iter, void *bytes,
                   size_t *nbytes_out) {
   struct iobuf dest;
   struct const_iobuf stat_buf;
@@ -184,17 +194,17 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
   int r;
 
   assert(ifs != NULL);
-  assert(dirent != NULL);
+  assert(ifs_iter_is_valid(iter));
   assert(nbytes_out != NULL);
 
-  if (prop_get_type(dirent) != PROP_3S32) {
-    log_write("%s: Expected dirent to be PROP_3S32", prop_get_name(dirent));
+  if (prop_get_type(iter->p) != PROP_3S32) {
+    log_write("%s: Expected dirent to be PROP_3S32", prop_get_name(iter->p));
     r = -EINVAL;
 
     return r;
   }
 
-  prop_borrow_value(dirent, &stat_buf);
+  prop_borrow_value(iter->p, &stat_buf);
 
   for (i = 0; i < lengthof(stat); i++) {
     r = iobuf_read_be32(&stat_buf, &stat[i]);
@@ -214,7 +224,7 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
 
     if (r < 0) {
       log_write("%s: IFS seek failed (offset=%#x): %s (%i)",
-                prop_get_name(dirent), offset, strerror(-r), r);
+                prop_get_name(iter->p), offset, strerror(-r), r);
 
       return r;
     }
@@ -227,7 +237,7 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
 
     if (r < 0) {
       log_write("%s: IFS read failed (nbytes=%#x): %s (%i)",
-                prop_get_name(dirent), nbytes, strerror(-r), r);
+                prop_get_name(iter->p), nbytes, strerror(-r), r);
 
       return r;
     }
@@ -238,27 +248,39 @@ int ifs_read_file(struct ifs *ifs, const struct prop *dirent, void *bytes,
   return 0;
 }
 
-int ifs_dirent_lookup(const struct prop *dirent, const char *path,
-                      const struct prop **out) {
-  const struct prop *pos;
+void ifs_iter_init(struct ifs_iter *iter) {
+  assert(iter != NULL);
+
+  iter->p = NULL;
+}
+
+bool ifs_iter_is_valid(const struct ifs_iter *iter) {
+  assert(iter != NULL);
+
+  return iter->p != NULL;
+}
+
+int ifs_iter_lookup(const struct ifs_iter *parent, const char *path,
+                    struct ifs_iter *child) {
+  struct ifs_iter pos;
   int r;
 
-  assert(dirent != NULL);
+  assert(parent != NULL);
   assert(path != NULL);
-  assert(out != NULL);
+  assert(child != NULL);
 
-  *out = NULL;
+  ifs_iter_init(child);
 
-  for (pos = ifs_dirent_get_first_child(dirent); pos != NULL;
-       pos = ifs_dirent_get_next_sibling(pos)) {
-    r = ifs_dirent_match(pos, path);
+  for (ifs_iter_get_first_child(parent, &pos); ifs_iter_is_valid(&pos);
+       ifs_iter_get_next_sibling(&pos)) {
+    r = ifs_iter_match(&pos, path);
 
     if (r < 0) {
       return r;
     }
 
     if (r > 0) {
-      *out = pos;
+      *child = pos;
 
       return r;
     }
@@ -267,15 +289,15 @@ int ifs_dirent_lookup(const struct prop *dirent, const char *path,
   return 0;
 }
 
-static int ifs_dirent_match(const struct prop *dirent, const char *path) {
+static int ifs_iter_match(const struct ifs_iter *iter, const char *path) {
   char *str;
   int r;
 
-  assert(dirent != NULL);
+  assert(iter != NULL);
   assert(path != NULL);
 
   str = NULL;
-  r = ifs_dirent_get_name(dirent, &str);
+  r = ifs_iter_get_name(iter, &str);
 
   if (r < 0) {
     goto end;
@@ -289,39 +311,42 @@ end:
   return r;
 }
 
-const struct prop *ifs_dirent_get_first_child(const struct prop *dirent) {
+void ifs_iter_get_first_child(const struct ifs_iter *iter,
+                              struct ifs_iter *out) {
   const struct prop *pos;
 
-  assert(dirent != NULL);
+  assert(ifs_iter_is_valid(iter));
+  assert(out != NULL);
 
-  pos = prop_get_first_child_const(dirent);
+  ifs_iter_init(out);
+  pos = prop_get_first_child_const(iter->p);
 
   if (pos != NULL && str_eq(prop_get_name(pos), "_info_")) {
     pos = prop_get_next_sibling_const(pos);
   }
 
-  return pos;
+  out->p = pos;
 }
 
-const struct prop *ifs_dirent_get_next_sibling(const struct prop *dirent) {
-  assert(dirent != NULL);
+void ifs_iter_get_next_sibling(struct ifs_iter *iter) {
+  assert(ifs_iter_is_valid(iter));
 
-  return prop_get_next_sibling_const(dirent);
+  iter->p = prop_get_next_sibling_const(iter->p);
 }
 
-int ifs_dirent_get_name(const struct prop *dirent, char **out) {
+int ifs_iter_get_name(const struct ifs_iter *dirent, char **out) {
   bool escape;
   uint32_t i;
   uint32_t j;
   const char *raw;
   char *str;
 
-  assert(dirent != NULL);
+  assert(ifs_iter_is_valid(dirent));
   assert(out != NULL);
 
   *out = NULL;
 
-  raw = prop_get_name(dirent);
+  raw = prop_get_name(dirent->p);
   escape = false;
   j = 0;
 
@@ -368,12 +393,12 @@ int ifs_dirent_get_name(const struct prop *dirent, char **out) {
   return 0;
 }
 
-bool ifs_dirent_is_dir(const struct prop *dirent) {
+bool ifs_iter_is_dir(const struct ifs_iter *dirent) {
   enum prop_type type;
 
-  assert(dirent != NULL);
+  assert(ifs_iter_is_valid(dirent));
 
-  type = prop_get_type(dirent);
+  type = prop_get_type(dirent->p);
 
   return type == PROP_VOID || type == PROP_S32;
 }
