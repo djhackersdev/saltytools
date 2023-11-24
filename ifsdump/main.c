@@ -5,23 +5,23 @@
 
 #include "573file/ifs.h"
 #include "573file/prop-xml-writer.h"
-#include "573file/prop.h"
 
 #include "util/fs.h"
 #include "util/log.h"
 #include "util/str.h"
 
-static int ifs_dump_child(struct ifs *ifs, const struct prop *child,
+static int ifs_dump_child(struct ifs *ifs, const struct ifs_iter *child,
                           const char *parent_path);
-static int ifs_dump_dir(struct ifs *ifs, const struct prop *dirent,
+static int ifs_dump_dir(struct ifs *ifs, const struct ifs_iter *dirent,
                         const char *path);
-static int ifs_dump_file(struct ifs *ifs, const struct prop *child,
+static int ifs_dump_file(struct ifs *ifs, const struct ifs_iter *child,
                          const char *path);
 static int ifs_dump_toc(struct ifs *ifs, const char *dir);
 
 int main(int argc, char **argv) {
   const char *infile;
   const char *outdir;
+  struct ifs_iter root;
   struct ifs *ifs;
   int r;
 
@@ -53,7 +53,8 @@ int main(int argc, char **argv) {
     goto end;
   }
 
-  r = ifs_dump_child(ifs, ifs_get_root(ifs), outdir);
+  ifs_get_root(ifs, &root);
+  r = ifs_dump_child(ifs, &root, outdir);
 
   if (r < 0) {
     goto end;
@@ -72,7 +73,6 @@ end:
 }
 
 static int ifs_dump_toc(struct ifs *ifs, const char *dir) {
-  const struct prop *toc;
   struct const_iobuf buf;
   char *path;
   char *xml;
@@ -90,8 +90,7 @@ static int ifs_dump_toc(struct ifs *ifs, const char *dir) {
     goto end;
   }
 
-  toc = ifs_get_root(ifs);
-  r = prop_xml_write(toc, &xml);
+  r = prop_xml_write(ifs_get_toc_data(ifs), &xml);
 
   if (r < 0) {
     goto end;
@@ -114,18 +113,18 @@ end:
   return r;
 }
 
-static int ifs_dump_dir(struct ifs *ifs, const struct prop *parent,
+static int ifs_dump_dir(struct ifs *ifs, const struct ifs_iter *parent,
                         const char *path) {
-  const struct prop *child;
+  struct ifs_iter child;
   int r;
 
   assert(ifs != NULL);
   assert(parent != NULL);
   assert(path != NULL);
 
-  for (child = ifs_dirent_get_first_child(parent); child != NULL;
-       child = ifs_dirent_get_next_sibling(child)) {
-    r = ifs_dump_child(ifs, child, path);
+  for (ifs_iter_get_first_child(parent, &child); ifs_iter_is_valid(&child);
+       ifs_iter_get_next_sibling(&child)) {
+    r = ifs_dump_child(ifs, &child, path);
 
     if (r < 0) {
       return r;
@@ -135,7 +134,7 @@ static int ifs_dump_dir(struct ifs *ifs, const struct prop *parent,
   return 0;
 }
 
-static int ifs_dump_child(struct ifs *ifs, const struct prop *child,
+static int ifs_dump_child(struct ifs *ifs, const struct ifs_iter *child,
                           const char *parent_path) {
   char *name;
   char *path;
@@ -148,7 +147,7 @@ static int ifs_dump_child(struct ifs *ifs, const struct prop *child,
   name = NULL;
   path = NULL;
 
-  r = ifs_dirent_get_name(child, &name);
+  r = ifs_iter_get_name(child, &name);
 
   if (r < 0) {
     goto end;
@@ -160,7 +159,7 @@ static int ifs_dump_child(struct ifs *ifs, const struct prop *child,
     goto end;
   }
 
-  if (ifs_dirent_is_dir(child)) {
+  if (ifs_iter_is_dir(child)) {
     r = fs_mkdir(path);
 
     if (r < 0) {
@@ -179,7 +178,7 @@ end:
   return r;
 }
 
-static int ifs_dump_file(struct ifs *ifs, const struct prop *child,
+static int ifs_dump_file(struct ifs *ifs, const struct ifs_iter *child,
                          const char *path) {
   struct const_iobuf src;
   void *bytes;
