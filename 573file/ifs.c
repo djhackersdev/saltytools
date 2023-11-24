@@ -14,11 +14,17 @@
 #include "util/macro.h"
 #include "util/str.h"
 
+static const size_t ifs_header_size = 0x24;
+
 enum ifs_stat_entry {
   IFS_STAT_ENTRY_OFFSET,
   IFS_STAT_ENTRY_NBYTES,
   IFS_STAT_ENTRY_TIMESTAMP,
   IFS_STAT_LENGTH_
+};
+
+struct ifs_header {
+  uint32_t words[9];
 };
 
 struct ifs {
@@ -27,17 +33,48 @@ struct ifs {
   struct prop *root;
 };
 
+static int ifs_header_read(FILE *f, struct ifs_header *header);
 static int ifs_dirent_match(const struct prop *dirent, const char *path);
+
+static int ifs_header_read(FILE *f, struct ifs_header *header) {
+  uint8_t header_bytes[ifs_header_size];
+  struct const_iobuf src;
+  struct iobuf dest;
+  size_t i;
+  int r;
+
+  assert(f != NULL);
+  assert(header != NULL);
+
+  dest.bytes = header_bytes;
+  dest.nbytes = sizeof(header_bytes);
+  dest.pos = 0;
+
+  r = fs_read(f, &dest);
+
+  if (r < 0) {
+    return r;
+  }
+
+  src.bytes = header_bytes;
+  src.nbytes = sizeof(header_bytes);
+  src.pos = 0;
+
+  for (i = 0; i < lengthof(header->words); i++) {
+    r = iobuf_read_be32(&src, &header->words[i]);
+
+    assert(r >= 0);
+  }
+
+  return 0;
+}
 
 int ifs_open(struct ifs **out, const char *path) {
   struct ifs *ifs;
-  struct iobuf dest;
-  struct const_iobuf src;
-  uint8_t header_bytes[0x24];
-  uint32_t header_words[9];
+  struct ifs_header header;
+  struct iobuf pp_buf;
   void *pp_bytes;
   size_t pp_nbytes;
-  size_t i;
   int r;
 
   assert(out != NULL);
@@ -62,11 +99,7 @@ int ifs_open(struct ifs **out, const char *path) {
     goto end;
   }
 
-  dest.bytes = header_bytes;
-  dest.nbytes = sizeof(header_bytes);
-  dest.pos = 0;
-
-  r = fs_read(ifs->f, &dest);
+  r = ifs_header_read(ifs->f, &header);
 
   if (r < 0) {
     log_write("%s: Error reading header: %s (%i)", path, strerror(-r), r);
@@ -74,19 +107,9 @@ int ifs_open(struct ifs **out, const char *path) {
     goto end;
   }
 
-  src.bytes = header_bytes;
-  src.nbytes = sizeof(header_bytes);
-  src.pos = 0;
+  ifs->body_start = header.words[4];
 
-  for (i = 0; i < lengthof(header_words); i++) {
-    r = iobuf_read_be32(&src, &header_words[i]);
-
-    assert(r >= 0);
-  }
-
-  ifs->body_start = header_words[4];
-
-  pp_nbytes = ifs->body_start - sizeof(header_bytes);
+  pp_nbytes = ifs->body_start - ifs_header_size;
   pp_bytes = malloc(pp_nbytes);
 
   if (pp_bytes == NULL) {
@@ -95,11 +118,11 @@ int ifs_open(struct ifs **out, const char *path) {
     goto end;
   }
 
-  dest.bytes = pp_bytes;
-  dest.nbytes = pp_nbytes;
-  dest.pos = 0;
+  pp_buf.bytes = pp_bytes;
+  pp_buf.nbytes = pp_nbytes;
+  pp_buf.pos = 0;
 
-  r = fs_read(ifs->f, &dest);
+  r = fs_read(ifs->f, &pp_buf);
 
   if (r < 0) {
     log_write("%s: Error reading TOC: %s (%i)", path, strerror(-r), r);
