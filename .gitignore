@@ -1,2 +1,8 @@
 .cache/
 .vscode/launch.json
+
+# Important: must exclude all the files/folders under subprojects/ and not just
+# subprojects/ itself, otherwise the exclusion rule for wrap files does not
+# work.
+subprojects/*
+!subprojects/*.wrap
