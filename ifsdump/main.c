@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "573file/ifs.h"
-#include "573file/prop-xml-writer.h"
 
 #include "util/fs.h"
 #include "util/log.h"
@@ -16,7 +15,6 @@ static int ifs_dump_dir(struct ifs *ifs, const struct ifs_iter *dirent,
                         const char *path);
 static int ifs_dump_file(struct ifs *ifs, const struct ifs_iter *child,
                          const char *path);
-static int ifs_dump_toc(struct ifs *ifs, const char *dir);
 
 int main(int argc, char **argv) {
   const char *infile;
@@ -47,14 +45,8 @@ int main(int argc, char **argv) {
     goto end;
   }
 
-  r = ifs_dump_toc(ifs, outdir);
-
-  if (r < 0) {
-    goto end;
-  }
-
   ifs_get_root(ifs, &root);
-  r = ifs_dump_child(ifs, &root, outdir);
+  r = ifs_dump_dir(ifs, &root, outdir);
 
   if (r < 0) {
     goto end;
@@ -72,55 +64,21 @@ end:
   return EXIT_SUCCESS;
 }
 
-static int ifs_dump_toc(struct ifs *ifs, const char *dir) {
-  struct const_iobuf buf;
-  char *path;
-  char *xml;
-  int r;
-
-  assert(ifs != NULL);
-  assert(dir != NULL);
-
-  path = NULL;
-  xml = NULL;
-
-  r = str_printf(&path, "%s/toc.xml", dir);
-
-  if (r < 0) {
-    goto end;
-  }
-
-  r = prop_xml_write(ifs_get_toc_data(ifs), &xml);
-
-  if (r < 0) {
-    goto end;
-  }
-
-  buf.bytes = (uint8_t *)xml;
-  buf.nbytes = strlen(xml);
-  buf.pos = 0;
-
-  r = fs_write_file(path, &buf);
-
-  if (r < 0) {
-    goto end;
-  }
-
-end:
-  free(xml);
-  free(path);
-
-  return r;
-}
-
 static int ifs_dump_dir(struct ifs *ifs, const struct ifs_iter *parent,
                         const char *path) {
   struct ifs_iter child;
   int r;
 
   assert(ifs != NULL);
-  assert(parent != NULL);
+  assert(ifs_iter_is_valid(parent));
+  assert(ifs_iter_is_dir(parent));
   assert(path != NULL);
+
+  r = fs_mkdir(path);
+
+  if (r < 0) {
+    return r;
+  }
 
   for (ifs_iter_get_first_child(parent, &child); ifs_iter_is_valid(&child);
        ifs_iter_get_next_sibling(&child)) {
@@ -160,12 +118,6 @@ static int ifs_dump_child(struct ifs *ifs, const struct ifs_iter *child,
   }
 
   if (ifs_iter_is_dir(child)) {
-    r = fs_mkdir(path);
-
-    if (r < 0) {
-      goto end;
-    }
-
     r = ifs_dump_dir(ifs, child, path);
   } else {
     r = ifs_dump_file(ifs, child, path);
