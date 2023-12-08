@@ -8,6 +8,8 @@ util_lib = static_library(
     'crypto.h',
     'fs.c',
     'fs.h',
+    'hex.c',
+    'hex.h',
     'iobuf.c',
     'iobuf.h',
     'list.c',
