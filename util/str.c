@@ -1,9 +1,33 @@
+#include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "util/str.h"
+
+int str_dup(char **out, const char *src) {
+  size_t len;
+  char *dest;
+
+  assert(out != NULL);
+  assert(src != NULL);
+
+  *out = NULL;
+
+  len = strlen(src) + 1;
+  dest = malloc(len);
+
+  if (dest == NULL) {
+    return -ENOMEM;
+  }
+
+  memcpy(dest, src, len);
+  *out = dest;
+
+  return 0;
+}
 
 bool str_eq(const char *lhs, const char *rhs) {
   if (lhs == NULL || rhs == NULL) {

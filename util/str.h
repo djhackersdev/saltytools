@@ -12,8 +12,8 @@ struct strbuf {
   size_t pos;
 };
 
+int str_dup(char **dest, const char *src);
 bool str_eq(const char *lhs, const char *rhs);
-
 int str_printf(char **out, const char *fmt, ...)
     gcc_attribute((format(printf, 2, 3)));
 int str_vprintf(char **out, const char *fmt, va_list ap);
