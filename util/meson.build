@@ -1,8 +1,11 @@
 util_lib = static_library(
   'util',
+  dependencies: [openssl_dep],
   include_directories: [inc],
   c_pch: '../precompiled.h',
   sources: [
+    'crypto.c',
+    'crypto.h',
     'fs.c',
     'fs.h',
     'iobuf.c',
