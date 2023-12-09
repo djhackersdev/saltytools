@@ -10,4 +10,5 @@ subdir('picture')
 subdir('util')
 
 subdir('ifsdump')
+subdir('texdump')
 subdir('xmldump')
