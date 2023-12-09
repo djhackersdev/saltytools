@@ -95,8 +95,6 @@ int ifs_open(struct ifs **out, const char *path) {
   r = fs_open(&ifs->f, path, "rb");
 
   if (r < 0) {
-    log_write("%s: Error opening file: %s (%i)", path, strerror(-r), r);
-
     goto end;
   }
 
