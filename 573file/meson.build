@@ -17,5 +17,7 @@ _573file_lib = static_library(
     'prop-xml-writer.h',
     'prop.c',
     'prop.h',
+    'tex.c',
+    'tex.h',
   ]
 )
