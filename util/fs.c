@@ -12,6 +12,7 @@
 
 int fs_open(FILE **out, const char *path, const char *mode) {
   FILE *f;
+  int r;
 
   assert(out != NULL);
   assert(path != NULL);
@@ -21,7 +22,10 @@ int fs_open(FILE **out, const char *path, const char *mode) {
   f = fopen(path, mode);
 
   if (f == NULL) {
-    return -errno;
+    r = -errno;
+    log_write("Error opening \"%s\": %s (%i)", path, strerror(-r), r);
+
+    return r;
   }
 
   *out = f;

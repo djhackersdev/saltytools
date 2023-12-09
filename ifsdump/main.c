@@ -168,8 +168,6 @@ static int ifs_dump_file(struct ifs *ifs, const struct ifs_iter *child,
   r = fs_open(&f, path, "wb");
 
   if (r < 0) {
-    log_write("fopen %s: %s (%i)", path, strerror(-r), r);
-
     goto end;
   }
 
