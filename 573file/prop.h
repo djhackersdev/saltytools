@@ -26,6 +26,8 @@ struct prop *prop_get_parent(struct prop *p);
 enum prop_type prop_get_type(const struct prop *p);
 const char *prop_get_value_str(const struct prop *p);
 struct prop *prop_search_child(struct prop *p, const char *name);
+const struct prop *prop_search_child_const(const struct prop *p,
+                                           const char *name);
 int prop_set_attr(struct prop *p, const char *key, const char *val);
 
 const struct attr *attr_get_next_sibling(const struct attr *a);
