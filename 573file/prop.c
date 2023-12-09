@@ -300,6 +300,11 @@ const char *prop_get_value_str(const struct prop *p) {
 }
 
 struct prop *prop_search_child(struct prop *p, const char *name) {
+  return (struct prop *)prop_search_child_const(p, name);
+}
+
+const struct prop *prop_search_child_const(const struct prop *p,
+                                           const char *name) {
   struct list_node *pos;
   struct prop *child;
 
